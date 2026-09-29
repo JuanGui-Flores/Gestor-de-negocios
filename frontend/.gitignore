@@ -1,0 +1,27 @@
+# --- DEPENDENCIAS ---
+node_modules/
+**/node_modules/
+
+# --- COMPILACIONES Y ELECTRON (FRONTEND / BACKEND) ---
+dist/
+dist_installer/
+build/
+release/
+*.exe
+*.dmg
+*.deb
+
+# --- BASES DE DATOS LOCALES Y ENTORNO ---
+*.sqlite
+*.sqlite3
+*.db
+.env
+.env.local
+
+# --- LOGS Y ARCHIVOS DEL SISTEMA OPERATIVO ---
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db

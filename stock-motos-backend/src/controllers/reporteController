@@ -1,0 +1,131 @@
+const pool = require('../config/db');
+
+// 1. Dashboard Principal
+const obtenerDashboard = async (req, res) => {
+    try {
+        const queryMetricas = `
+            SELECT 
+                COALESCE(SUM(total), 0) AS ingresos_totales,
+                COUNT(id_venta) AS ventas_realizadas,
+                COALESCE(AVG(total), 0) AS promedio_venta
+            FROM ventas;
+        `;
+        const resMetricas = await pool.query(queryMetricas);
+
+        const queryHistorial = `
+            SELECT id_venta, fecha_venta AS fecha, total
+            FROM ventas
+            ORDER BY fecha_venta DESC
+            LIMIT 20;
+        `;
+        const resHistorial = await pool.query(queryHistorial);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                metricas: {
+                    ingresos_totales: Number.parseFloat(resMetricas.rows[0].ingresos_totales),
+                    ventas_realizadas: Number.parseInt(resMetricas.rows[0].ventas_realizadas),
+                    promedio_venta: Number.parseFloat(resMetricas.rows[0].promedio_venta)
+                },
+                historial: resHistorial.rows
+            }
+        });
+    } catch (error) {
+        console.error('Error al obtener dashboard:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+// 2. Obtener listado de ventas 
+const obtenerVentasReporte = async (req, res) => {
+    const { inicio, fin } = req.query;
+
+    try {
+        let query = `
+            SELECT 
+                v.id_venta, 
+                v.fecha_venta AS fecha, 
+                v.total
+            FROM ventas v
+        `;
+        const parametros = [];
+
+        if (inicio && fin) {
+            query += ` WHERE v.fecha_venta::date BETWEEN $1 AND $2`;
+            parametros.push(inicio, fin);
+        }
+
+        query += ` ORDER BY v.fecha_venta DESC;`;
+
+        const resultado = await pool.query(query, parametros);
+
+        res.status(200).json({
+            success: true,
+            data: resultado.rows
+        });
+    } catch (error) {
+        console.error('Error al obtener ventas para reporte:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+// 3. Obtener Top Repuestos Más Vendidos (Corregido a id_producto)
+const obtenerTopRepuestos = async (req, res) => {
+    const { inicio, fin } = req.query;
+
+    try {
+        let query = `
+            SELECT 
+                r.id_repuesto,
+                r.nombre,
+                COALESCE(SUM(dv.cantidad), 0) AS total_vendido,
+                COALESCE(SUM(dv.subtotal), 0) AS recaudado
+            FROM detalle_ventas dv
+            JOIN repuestos r ON dv.id_producto = r.id_repuesto
+            JOIN ventas v ON dv.id_venta = v.id_venta
+        `;
+        const parametros = [];
+
+        if (inicio && fin) {
+            query += ` WHERE v.fecha_venta::date BETWEEN $1 AND $2`;
+            parametros.push(inicio, fin);
+        }
+
+        query += `
+            GROUP BY r.id_repuesto, r.nombre
+            ORDER BY total_vendido DESC
+            LIMIT 5;
+        `;
+
+        const resultado = await pool.query(query, parametros);
+
+        res.status(200).json({
+            success: true,
+            data: resultado.rows
+        });
+    } catch (error) {
+        console.error('Error al obtener top repuestos:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+const eliminarRepuesto = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const resultado = await pool.query('DELETE FROM repuestos WHERE id_repuesto = $1 RETURNING *', [id]);
+        if (resultado.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Repuesto no encontrado' });
+        }
+        res.status(200).json({ success: true, message: 'Repuesto eliminado correctamente' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+module.exports = {
+    obtenerDashboard,
+    obtenerVentasReporte,
+    obtenerTopRepuestos,
+    eliminarRepuesto
+};
